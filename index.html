@@ -34,11 +34,12 @@
             transform: translate(-50%, -50%);
             color: white;
             text-align: center;
-            font-size: 18px;
-            background: rgba(0,0,0,0.7);
+            font-size: 16px;
+            background: rgba(0,0,0,0.8);
             padding: 20px;
             border-radius: 10px;
             z-index: 1000;
+            max-width: 90%;
         }
         
         #error {
@@ -48,11 +49,26 @@
             transform: translate(-50%, -50%);
             color: white;
             text-align: center;
-            font-size: 18px;
+            font-size: 16px;
             background: rgba(255,0,0,0.8);
             padding: 20px;
             border-radius: 10px;
             z-index: 1000;
+            display: none;
+            max-width: 90%;
+        }
+
+        #debug {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 12px;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 1000;
+            max-width: 90%;
             display: none;
         }
 
@@ -72,6 +88,10 @@
             <h3>خطا در بارگذاری</h3>
             <p id="error-message">مشکلی پیش آمده است</p>
         </div>
+        
+        <div id="debug">
+            <div id="debug-text">شروع بررسی...</div>
+        </div>
     </div>
 
     <script>
@@ -87,9 +107,34 @@
             document.getElementById('error').style.display = 'block';
         }
 
+        // تابع نمایش debug
+        function showDebug(message) {
+            document.getElementById('debug-text').textContent = message;
+            document.getElementById('debug').style.display = 'block';
+        }
+
         // تابع اصلی AR
         async function startAR() {
             try {
+                // بررسی وجود فایل‌ها
+                showDebug('بررسی فایل target.mind...');
+                
+                // بررسی target.mind
+                const targetResponse = await fetch('./target.mind');
+                if (!targetResponse.ok) {
+                    throw new Error(`فایل target.mind پیدا نشد (کد: ${targetResponse.status})`);
+                }
+                
+                showDebug('بررسی فایل video.mp4...');
+                
+                // بررسی video.mp4
+                const videoResponse = await fetch('./video.mp4');
+                if (!videoResponse.ok) {
+                    throw new Error(`فایل video.mp4 پیدا نشد (کد: ${videoResponse.status})`);
+                }
+                
+                showDebug('فایل‌ها موجودند. شروع AR...');
+                
                 // ایجاد MindAR
                 mindarThree = new window.MINDAR.IMAGE.MindARThree({
                     container: document.getElementById('container'),
@@ -148,11 +193,12 @@
                 // شروع AR
                 await mindarThree.start();
                 document.getElementById('loading').style.display = 'none';
-                console.log('AR شروع شد!');
+                document.getElementById('debug').style.display = 'none';
+                showDebug('AR فعال شد! دوربین را روی target نگه دارید');
                 
             } catch (error) {
                 console.error('خطا در AR:', error);
-                showError('خطا در بارگذاری AR. لطفاً فایل‌های target.mind و video.mp4 را بررسی کنید.');
+                showError(`خطا: ${error.message}`);
             }
         }
 
