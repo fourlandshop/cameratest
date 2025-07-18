@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دوربین</title>
+    <title>AR فیلم</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mind-ar/1.2.2/mindar-image.prod.js"></script>
     <style>
         * {
             margin: 0;
@@ -16,13 +18,27 @@
             overflow: hidden;
             height: 100vh;
             width: 100vw;
+            font-family: Arial, sans-serif;
         }
         
-        #video {
+        #container {
+            position: relative;
             width: 100vw;
             height: 100vh;
-            object-fit: cover;
-            display: block;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            font-size: 18px;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1000;
         }
         
         #error {
@@ -31,52 +47,124 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: white;
-            font-family: Arial, sans-serif;
             text-align: center;
             font-size: 18px;
+            background: rgba(255,0,0,0.8);
             padding: 20px;
-            background: rgba(0,0,0,0.7);
             border-radius: 10px;
+            z-index: 1000;
             display: none;
+        }
+
+        canvas {
+            display: block;
         }
     </style>
 </head>
 <body>
-    <video id="video" autoplay playsinline></video>
-    <div id="error">
-        <h3>خطا در دسترسی به دوربین</h3>
-        <p>لطفاً اجازه دسترسی به دوربین را بدهید</p>
+    <div id="container">
+        <div id="loading">
+            <h3>در حال بارگذاری AR...</h3>
+            <p>لطفاً صبر کنید</p>
+        </div>
+        
+        <div id="error">
+            <h3>خطا در بارگذاری</h3>
+            <p id="error-message">مشکلی پیش آمده است</p>
+        </div>
     </div>
 
     <script>
-        const video = document.getElementById('video');
-        const errorDiv = document.getElementById('error');
+        let mindarThree;
+        let scene, camera, renderer;
+        let video, videoTexture;
+        let targetFound = false;
 
-        // درخواست دسترسی به دوربین
-        navigator.mediaDevices.getUserMedia({
-            video: { 
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                facingMode: 'environment' // دوربین پشت
-            },
-            audio: false
-        })
-        .then(stream => {
-            video.srcObject = stream;
-            video.play();
-        })
-        .catch(err => {
-            console.error('خطا در دسترسی به دوربین:', err);
-            errorDiv.style.display = 'block';
+        // تابع نمایش خطا
+        function showError(message) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('error').style.display = 'block';
+        }
+
+        // تابع اصلی AR
+        async function startAR() {
+            try {
+                // ایجاد MindAR
+                mindarThree = new window.MINDAR.IMAGE.MindARThree({
+                    container: document.getElementById('container'),
+                    imageTargetSrc: './target.mind',
+                    maxTrack: 1,
+                    filterMinCF: 0.0001,
+                    filterBeta: 0.01,
+                    warmupTolerance: 5,
+                    missTolerance: 5
+                });
+
+                const { renderer, scene, camera } = mindarThree;
+                
+                // ایجاد anchor برای target
+                const anchor = mindarThree.addAnchor(0);
+                
+                // ایجاد video element
+                video = document.createElement('video');
+                video.src = './video.mp4';
+                video.crossOrigin = 'anonymous';
+                video.loop = true;
+                video.muted = true;
+                video.playsInline = true;
+                video.preload = 'auto';
+                
+                // ایجاد video texture
+                videoTexture = new THREE.VideoTexture(video);
+                videoTexture.minFilter = THREE.LinearFilter;
+                videoTexture.magFilter = THREE.LinearFilter;
+                
+                // ایجاد geometry و material برای نمایش فیلم
+                const geometry = new THREE.PlaneGeometry(1, 1);
+                const material = new THREE.MeshBasicMaterial({ 
+                    map: videoTexture,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                
+                const plane = new THREE.Mesh(geometry, material);
+                anchor.group.add(plane);
+                
+                // Event listeners برای target
+                anchor.onTargetFound = () => {
+                    console.log('Target پیدا شد!');
+                    targetFound = true;
+                    video.currentTime = 0;
+                    video.play().catch(e => console.log('خطا در پخش فیلم:', e));
+                };
+                
+                anchor.onTargetLost = () => {
+                    console.log('Target گم شد!');
+                    targetFound = false;
+                    video.pause();
+                };
+                
+                // شروع AR
+                await mindarThree.start();
+                document.getElementById('loading').style.display = 'none';
+                console.log('AR شروع شد!');
+                
+            } catch (error) {
+                console.error('خطا در AR:', error);
+                showError('خطا در بارگذاری AR. لطفاً فایل‌های target.mind و video.mp4 را بررسی کنید.');
+            }
+        }
+
+        // شروع AR وقتی صفحه بارگذاری شد
+        window.addEventListener('load', () => {
+            startAR();
         });
 
-        // جلوگیری از کلیک راست
-        document.addEventListener('contextmenu', e => e.preventDefault());
-        
-        // جلوگیری از کلیدهای خاص
-        document.addEventListener('keydown', e => {
-            if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
-                e.preventDefault();
+        // توقف AR وقتی صفحه بسته می‌شود
+        window.addEventListener('beforeunload', () => {
+            if (mindarThree) {
+                mindarThree.stop();
             }
         });
     </script>
