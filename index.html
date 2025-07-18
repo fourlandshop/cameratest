@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AR فیلم</title>
+    <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-three.prod.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mind-ar/1.2.2/mindar-image.prod.js"></script>
     <style>
         * {
             margin: 0;
@@ -116,6 +116,16 @@
         // تابع اصلی AR
         async function startAR() {
             try {
+                // بررسی بارگذاری کتابخانه‌ها
+                if (typeof window.MINDAR === 'undefined') {
+                    throw new Error('کتابخانه MindAR لود نشده است');
+                }
+                if (typeof THREE === 'undefined') {
+                    throw new Error('کتابخانه THREE.js لود نشده است');
+                }
+                
+                showDebug('کتابخانه‌ها لود شدند');
+                
                 // بررسی وجود فایل‌ها
                 showDebug('بررسی فایل target.mind...');
                 
@@ -202,9 +212,19 @@
             }
         }
 
+        // شروع AR وقتی کتابخانه‌ها لود شدند
+        function initAR() {
+            // صبر کردن تا همه کتابخانه‌ها لود شوند
+            if (typeof window.MINDAR === 'undefined' || typeof THREE === 'undefined') {
+                setTimeout(initAR, 100);
+                return;
+            }
+            startAR();
+        }
+
         // شروع AR وقتی صفحه بارگذاری شد
         window.addEventListener('load', () => {
-            startAR();
+            initAR();
         });
 
         // توقف AR وقتی صفحه بسته می‌شود
